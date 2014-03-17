@@ -1,29 +1,75 @@
-FROM ubuntu:precise
-MAINTAINER Jason Staten <jstaten@peer60.com>
+# -*- sh -*-
 
-ENV LANGUAGE en_US.UTF-8
-ENV LANG en_US.UTF-8
-ENV LC_ALL en_US.UTF-8
+# Based on
+# https://github.com/srid/discourse-docker/blob/master/postgresql/Dockerfile
+FROM       	ubuntu:12.04
+MAINTAINER  danhixon
 
-RUN locale-gen en_US.UTF-8 && DEBIAN_FRONTEND=noninteractive dpkg-reconfigure locales
+# Prevent apt from starting postgres right after the installation
+#
+RUN echo "#!/bin/sh\nexit 101" > /usr/sbin/policy-rc.d; chmod +x /usr/sbin/policy-rc.d
 
-RUN apt-get update && apt-get -y --force-yes install wget
+# Set up the environment
+#
+ENV DEBIAN_FRONTEND noninteractive
 
-ADD sources.list /etc/apt/sources.list.d/peer60-postgres.list
+# Fix encoding-related bug
+# https://bugs.launchpad.net/ubuntu/+source/lxc/+bug/813398
+#
+RUN apt-get update
+RUN apt-get -qy --fix-missing --force-yes install language-pack-en 
+RUN update-locale LANG=en_US.UTF-8 LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8
 
-RUN wget --quiet -O - http://apt.postgresql.org/pub/repos/apt/ACCC4CF8.asc | apt-key add -
+RUN dpkg-reconfigure locales
+RUN apt-get update
 
-RUN apt-get update --no-list-cleanup\
-      && DEBIAN_FRONTEND=noninteractive apt-get -y --force-yes install postgresql-9.3 \
-      && rm -rf /var/lib/apt/lists/* \
-      && apt-get clean
+# Get Ready:
+RUN apt-get -y install wget 
+RUN apt-get -y install python-software-properties
 
-ADD pg_hba.conf /etc/postgresql/9.3/main/pg_hba.conf
-ADD postgresql.conf /etc/postgresql/9.3/main/postgresql.conf
+# Get Key:
+RUN wget --quiet https://www.postgresql.org/media/keys/ACCC4CF8.asc
+RUN apt-key add ACCC4CF8.asc
 
-USER postgres
+# Add Source & Update:
+RUN sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ precise-pgdg main" >> /etc/apt/sources.list.d/postgresql.list'
+RUN apt-get update
 
+# Install postgresql 
+RUN apt-get install -y -q postgresql-9.3 postgresql-contrib-9.3
+
+RUN cp /etc/ssl/private/ssl-cert-snakeoil.key /etc/postgresql/9.3/main/server.key
+RUN chown root:ssl-cert /etc/postgresql/9.3/main/server.key
+
+RUN cp /etc/ssl/private/ssl-cert-snakeoil.key /etc/postgresql/9.3/main/server.key
+RUN chown root:ssl-cert /etc/postgresql/9.3/main/server.key
+
+# Allow autostart again
+#
+RUN rm /usr/sbin/policy-rc.d
+
+
+# Move our files into the Docker image and make the
+# entrypoint executable.
+#
+ADD start_postgres.sh /
+RUN chmod a+x ./start_postgres.sh
+ADD postgresql.conf /etc/postgresql/9.3/main/
+ADD pg_hba.conf /etc/postgresql/9.3/main/
+
+
+# Expose port 5432, the default Postgresql port, which will
+# allow other container to connect to this container's Postgresql
+#
 EXPOSE 5432
-CMD /usr/lib/postgresql/9.3/bin/postgres -D \
-    /var/lib/postgresql/9.3/main -c \
-    config_file=/etc/postgresql/9.3/main/postgresql.conf
+
+# The entrypoint is our shell script.  You can pass in arguments
+# to this shell script when you start the docker container, e.g.
+#
+#	$ docker run -d "danhixon/precise-postgres-9.3" -u docker -p docker
+#
+# where the -u and -p arguments are passed to the shell script.
+#
+ENTRYPOINT ["/start_postgres.sh"]
+# default arguments
+#CMD ["-u docker -p docker"]
