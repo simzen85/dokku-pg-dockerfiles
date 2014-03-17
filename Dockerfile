@@ -1,6 +1,6 @@
 # forked from https://gist.github.com/jpetazzo/5494158
 
-FROM	ubuntu:12.04
+FROM	ubuntu
 MAINTAINER	kload "kload@kload.fr"
 
 # Add the PostgreSQL PGP key to verify their Debian packages.
