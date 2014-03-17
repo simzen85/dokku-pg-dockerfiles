@@ -1,6 +1,6 @@
 # forked from https://gist.github.com/jpetazzo/5494158
 
-FROM	ubuntu:quantal
+FROM	ubuntu:12.04
 MAINTAINER	kload "kload@kload.fr"
 
 # prevent apt from starting postgres right after the installation
